@@ -23,30 +23,30 @@ def strategy():
         user_prompt = f"""
 You are a business strategy advisor. For a business in the {biz} domain:
 
-1. Suggest 4 most important KPIs with 1-line explanations for each.
-2. Suggest 4 helpful tools with 1-line explanations for each.
-3. Give 1 short strategy advice.
+Provide exactly 4 KPIs and 4 tools with one-line descriptions, and one piece of strategic advice.
 
-Respond ONLY in this strict JSON format with double quotes (no single quotes):
+Respond ONLY in **valid JSON format** like this, without any explanation or markdown:
 
 {{
   "kpis": [
-    {{"name": "KPI1", "description": "What it measures and why it's useful"}},
-    {{"name": "KPI2", "description": "..."}},
-    {{"name": "KPI3", "description": "..."}},
-    {{"name": "KPI4", "description": "..."}}
+    {{ "name": "KPI1", "description": "..." }},
+    {{ "name": "KPI2", "description": "..." }},
+    {{ "name": "KPI3", "description": "..." }},
+    {{ "name": "KPI4", "description": "..." }}
   ],
   "tools": [
-    {{"name": "Tool1", "description": "What it does and how it's helpful"}},
-    {{"name": "Tool2", "description": "..."}},
-    {{"name": "Tool3", "description": "..."}},
-    {{"name": "Tool4", "description": "..."}}
+    {{ "name": "Tool1", "description": "..." }},
+    {{ "name": "Tool2", "description": "..." }},
+    {{ "name": "Tool3", "description": "..." }},
+    {{ "name": "Tool4", "description": "..." }}
   ],
-  "advice": "One-line strategic advice"
+  "advice": "One-line strategy advice"
 }}
 
-ONLY return pure JSON. Do not include markdown, explanations, or extra text.
-        """
+IMPORTANT:
+- Use only double quotes ("), not single quotes (').
+- Do NOT include any intro or summary text — only pure JSON.
+"""
 
         headers = {
             "Authorization": f"Bearer {GROQ_API_KEY}",
