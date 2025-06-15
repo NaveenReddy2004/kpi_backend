@@ -1,11 +1,12 @@
 import os
 import requests
 from flask import Flask, request, jsonify
-from flask_cors import CORS
-CORS(app)
-
+from flask_cors import CORS  
 
 app = Flask(__name__)
+CORS(app) 
+
+# Load your GROQ API key
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 @app.route('/')
@@ -45,7 +46,12 @@ Respond ONLY in the following JSON format:
     try:
         response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
         reply = response.json()["choices"][0]["message"]["content"]
-        return jsonify(eval(reply))  # Only do this if you're confident the response is safe
+        return jsonify(eval(reply))  
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"error": "Groq failed to generate a valid response"}), 500
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
