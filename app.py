@@ -27,8 +27,8 @@ def strategy():
     user_prompt = f"""
 You are a business strategy advisor. For a business in the {biz} domain:
 
-1. Suggest 3 most important KPIs with 1-line explanations for each.
-2. Suggest 3 helpful tools with 1-line explanations for each.
+1. Suggest 4 most important KPIs with 1-line explanations for each.
+2. Suggest 4 helpful tools with 1-line explanations for each.
 3. Give 1 short strategy advice.
 
 Respond ONLY in this strict JSON format:
