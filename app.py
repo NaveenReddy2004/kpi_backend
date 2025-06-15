@@ -5,9 +5,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app) 
+CORS(app)
 
-# Load Groq API key from environment variable
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 @app.route('/')
@@ -28,24 +27,25 @@ You are a business strategy advisor. For a business in the {biz} domain:
 2. Suggest 4 helpful tools with 1-line explanations for each.
 3. Give 1 short strategy advice.
 
-Respond ONLY in this strict JSON format:
+Respond ONLY in this strict JSON format with double quotes (no single quotes):
+
 {{
   "kpis": [
     {{"name": "KPI1", "description": "What it measures and why it's useful"}},
-    {{"name": "KPI2", "description": "..." }},
-    {{"name": "KPI3", "description": "..." }},
-    {{"name": "KPI4", "description": "..." }}
+    {{"name": "KPI2", "description": "..."}},
+    {{"name": "KPI3", "description": "..."}},
+    {{"name": "KPI4", "description": "..."}}
   ],
   "tools": [
     {{"name": "Tool1", "description": "What it does and how it's helpful"}},
-    {{"name": "Tool2", "description": "..." }},
-    {{"name": "Tool3", "description": "..." }},
-    {{"name": "Tool4", "description": "..." }}
+    {{"name": "Tool2", "description": "..."}},
+    {{"name": "Tool3", "description": "..."}},
+    {{"name": "Tool4", "description": "..."}}
   ],
   "advice": "One-line strategic advice"
 }}
 
-Return ONLY valid JSON. Do not include any explanations or markdown formatting.
+ONLY return pure JSON. Do not include markdown, explanations, or extra text.
         """
 
         headers = {
@@ -65,7 +65,7 @@ Return ONLY valid JSON. Do not include any explanations or markdown formatting.
         response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
         raw_reply = response.json()["choices"][0]["message"]["content"]
 
-        # Extract only valid JSON from the response
+        # Extract only JSON part from raw output
         start = raw_reply.find('{')
         end = raw_reply.rfind('}') + 1
         json_string = raw_reply[start:end]
@@ -75,6 +75,7 @@ Return ONLY valid JSON. Do not include any explanations or markdown formatting.
             return jsonify(parsed_json)
         except json.JSONDecodeError as e:
             print("JSON parsing error:", e)
+            print("RAW Groq reply:", raw_reply)
             return jsonify({"error": "Invalid JSON format from Groq"}), 500
 
     except Exception as e:
@@ -83,4 +84,3 @@ Return ONLY valid JSON. Do not include any explanations or markdown formatting.
 
 if __name__ == '__main__':
     app.run(debug=True)
-
