@@ -20,12 +20,16 @@ def strategy():
 
     system_prompt = "You are a business strategy advisor."
     user_prompt = f"""
-Suggest the top 3 KPIs, 3 tools, and 1 strategy tip for a business in the {biz} industry.
-Respond ONLY in the following JSON format:
+You are a business strategy advisor.
+
+Suggest the top 3 KPIs, 3 tools, and 1 strategy tip for a business in the "{biz}" industry.
+
+Respond ONLY in **valid JSON format** with **double quotes** and no extra text. Example:
+
 {{
   "kpis": ["KPI1", "KPI2", "KPI3"],
   "tools": ["Tool1", "Tool2", "Tool3"],
-  "advice": "Some advice here"
+  "advice": "Your single-line advice"
 }}
 """
 
