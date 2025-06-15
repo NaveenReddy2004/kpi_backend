@@ -23,28 +23,14 @@ def strategy():
         return jsonify({"error": "Missing 'business_type' in request"}), 400
 
     # Prompt engineering for strict JSON output
-    system_prompt = "You are a business strategy advisor."
-    user_prompt = f"""
-You are a business strategy advisor. For a business in the {biz} domain:
-
-1. Suggest 4 most important KPIs with 1-line explanations for each.
-2. Suggest 4 helpful tools with 1-line explanations for each.
-3. Give 1 short strategy advice.
-
-Respond ONLY in this strict JSON format:
+    system_prompt = "You are a business strategy advisor. Always respond with valid JSON, no markdown, no explanation."
+user_prompt = f"""
+Give exactly 4 KPIs, 4 tools, and 1 strategy advice for a business in the {biz} domain. Respond in this format:
 {{
-  "kpis": [
-    {{"name": "KPI1", "description": "What it measures and why it's useful"}},
-    {{"name": "KPI2", "description": "..." }},
-    ...
-  ],
-  "tools": [
-    {{"name": "Tool1", "description": "What it does and how it's helpful"}},
-    ...
-  ],
-  "advice": "One-line strategic advice"
+  "kpis": ["KPI1", "KPI2", "KPI3", "KPI4"],
+  "tools": ["Tool1", "Tool2", "Tool3", "Tool4"],
+  "advice": "One short actionable advice"
 }}
-Return ONLY valid JSON.
 """
 
     headers = {
