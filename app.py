@@ -5,26 +5,23 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all origins
+CORS(app) 
 
-# Get Groq API Key from environment variables
+# Load Groq API key from environment variable
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 @app.route('/')
 def home():
-    return "Groq KPI Recommender API is Live!"
+    return "Groq KPI Recommender API is Live"
 
 @app.route('/strategy', methods=['POST'])
 def strategy():
-    data = request.get_json()
-    biz = data.get("business_type", "")
+    try:
+        data = request.get_json()
+        biz = data.get("business_type", "")
 
-    if not biz:
-        return jsonify({"error": "Missing 'business_type' in request"}), 400
-
-    # Prompt engineering for strict JSON output
-    system_prompt = "You are a business strategy advisor. Always respond with valid JSON, no markdown, no explanation."
-    user_prompt = f"""
+        system_prompt = "You are a business strategy advisor."
+        user_prompt = f"""
 You are a business strategy advisor. For a business in the {biz} domain:
 
 1. Suggest 4 most important KPIs with 1-line explanations for each.
@@ -47,42 +44,43 @@ Respond ONLY in this strict JSON format:
   ],
   "advice": "One-line strategic advice"
 }}
-Return ONLY valid JSON without any extra text or explanation.
-"""
 
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
+Return ONLY valid JSON. Do not include any explanations or markdown formatting.
+        """
 
-    payload = {
-        "model": "llama3-70b-8192",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        "temperature": 0.7
-    }
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
 
-    try:
+        payload = {
+            "model": "llama3-70b-8192",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.7
+        }
+
         response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
-        reply_text = response.json()["choices"][0]["message"]["content"]
-        print("Groq Reply:\n", reply_text)
+        raw_reply = response.json()["choices"][0]["message"]["content"]
 
-        # Parse the JSON string in the reply
-        result = json.loads(reply_text)
-        return jsonify(result)
+        # Extract only valid JSON from the response
+        start = raw_reply.find('{')
+        end = raw_reply.rfind('}') + 1
+        json_string = raw_reply[start:end]
 
-    except json.JSONDecodeError as je:
-        print("JSON parsing failed:", je)
-        return jsonify({"error": "Invalid JSON from Groq response"}), 500
+        try:
+            parsed_json = json.loads(json_string)
+            return jsonify(parsed_json)
+        except json.JSONDecodeError as e:
+            print("JSON parsing error:", e)
+            return jsonify({"error": "Invalid JSON format from Groq"}), 500
 
     except Exception as e:
-        print("Error:", e)
-        return jsonify({"error": "Groq failed to generate a valid response"}), 500
+        print("Server error:", e)
+        return jsonify({"error": "Server error occurred"}), 500
 
-# Run app (needed for local testing)
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
-
 
