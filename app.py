@@ -13,6 +13,8 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 def home():
     return "Groq KPI Recommender API is Live"
 
+import json
+
 @app.route('/strategy', methods=['POST'])
 def strategy():
     data = request.get_json()
@@ -20,12 +22,9 @@ def strategy():
 
     system_prompt = "You are a business strategy advisor."
     user_prompt = f"""
-You are a business strategy advisor.
-
 Suggest the top 3 KPIs, 3 tools, and 1 strategy tip for a business in the "{biz}" industry.
 
-Respond ONLY in **valid JSON format** with **double quotes** and no extra text. Example:
-
+Respond ONLY in valid JSON format with double quotes and no extra text. Example:
 {{
   "kpis": ["KPI1", "KPI2", "KPI3"],
   "tools": ["Tool1", "Tool2", "Tool3"],
@@ -49,11 +48,20 @@ Respond ONLY in **valid JSON format** with **double quotes** and no extra text. 
 
     try:
         response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
-        reply = response.json()["choices"][0]["message"]["content"]
-        return jsonify(eval(reply))  
+        content = response.json()["choices"][0]["message"]["content"]
+        print("Raw Groq Response:", content)
+
+        parsed = json.loads(content)  # only works with valid JSON
+        return jsonify(parsed)
+
+    except json.JSONDecodeError as jde:
+        print("JSON Decode Error:", jde)
+        return jsonify({"error": "Invalid JSON from Groq"}), 500
+
     except Exception as e:
-        print(f"Error: {e}")
+        print("General Error:", e)
         return jsonify({"error": "Groq failed to generate a valid response"}), 500
+
 
 
 if __name__ == "__main__":
