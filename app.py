@@ -25,14 +25,26 @@ def strategy():
     # Prompt engineering for strict JSON output
     system_prompt = "You are a business strategy advisor."
     user_prompt = f"""
-Only respond with valid JSON, nothing else. Give 3 KPIs, 3 tools, and 1 advice for a {biz} business.
+You are a business strategy advisor. For a business in the {biz} domain:
 
-Respond in this exact JSON format:
+1. Suggest 3 most important KPIs with 1-line explanations for each.
+2. Suggest 3 helpful tools with 1-line explanations for each.
+3. Give 1 short strategy advice.
+
+Respond ONLY in this strict JSON format:
 {{
-  "kpis": ["KPI1", "KPI2", "KPI3"],
-  "tools": ["Tool1", "Tool2", "Tool3"],
-  "advice": "Some advice here"
+  "kpis": [
+    {{"name": "KPI1", "description": "What it measures and why it's useful"}},
+    {{"name": "KPI2", "description": "..." }},
+    ...
+  ],
+  "tools": [
+    {{"name": "Tool1", "description": "What it does and how it's helpful"}},
+    ...
+  ],
+  "advice": "One-line strategic advice"
 }}
+Return ONLY valid JSON.
 """
 
     headers = {
