@@ -88,16 +88,22 @@ def chat():
     query = data.get("query", "")
 
     system_prompt = "You are an expert KPI advisor chatbot for business users."
-    user_prompt = f"""
-Answer the following user question about business KPIs, tools, or strategies in a professional and easy-to-understand way:
+    user_query = data.get("query", "")
+    chat_prompt = f"""
+You are an AI assistant helping users understand business tools and KPIs. 
+When the user asks about a KPI, tool, or concept like "{user_query}", respond in a way that is:
 
-Query: "{query}"
+1. Easy to understand — avoid technical jargon.
+2. Friendly and clear — like explaining to a beginner.
+3. In 3 to 4 short paragraphs at most.
+4. Highlight **3 important points** about the tool/KPI using bullet points.
+5. End with a helpful or encouraging note if appropriate.
 
-Your response format:
-1. Start with a concise 3–4 line paragraph answering the question clearly.
-2. Then list 3 major points (if relevant) to help the user better understand or apply the concept.
+Avoid repeating the user's question. Keep tone informative and supportive.
 
-Do NOT include anything else except the paragraph and the bullet points.
+Now respond to the following user query:
+
+{user_query}
 """
 
     headers = {
