@@ -81,6 +81,34 @@ IMPORTANT:
     except Exception as e:
         print("Server error:", e)
         return jsonify({"error": "Server error occurred"}), 500
+        
+@app.route('/chat', methods=['POST'])
+def chat():
+    data = request.get_json()
+    user_query = data.get("query", "")
+
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "model": "llama3-70b-8192",
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant that answers business-related questions about KPIs, business tools, and strategic advice in simple terms."},
+            {"role": "user", "content": user_query}
+        ],
+        "temperature": 0.7
+    }
+
+    try:
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+        reply = response.json()["choices"][0]["message"]["content"]
+        return jsonify({"response": reply})
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": "Failed to generate chat response"}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
