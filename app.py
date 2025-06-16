@@ -54,7 +54,7 @@ IMPORTANT:
         }
 
         payload = {
-            "model": "anthropic/claude-3-sonnet-20240229",
+            "model": "llama3-70b-8192",
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
