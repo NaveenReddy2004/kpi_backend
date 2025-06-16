@@ -11,7 +11,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 @app.route('/')
 def home():
-    return "Groq KPI Recommender API is Live"
+    return "Claude 3 Sonnet Business Chatbot is Live "
 
 @app.route('/strategy', methods=['POST'])
 def strategy():
@@ -54,12 +54,12 @@ IMPORTANT:
         }
 
         payload = {
-            "model": "llama3-70b-8192",
+            "model": "anthropic/claude-3-sonnet-20240229",
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            "temperature": 0.7
+            "temperature": 0.6
         }
 
         response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
