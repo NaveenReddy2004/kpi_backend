@@ -85,9 +85,6 @@ IMPORTANT:
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.get_json()
-    query = data.get("query", "")
-
-    system_prompt = "You are an expert KPI advisor chatbot for business users."
     user_query = data.get("query", "")
     chat_prompt = f"""
 You are an AI assistant helping users understand business tools and KPIs. 
@@ -111,12 +108,12 @@ Now respond to the following user query:
         "Content-Type": "application/json"
     }
 
-    payload = {
-        "model": "llama3-70b-8192",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
+    payload={
+       "model": "llama3-70b-8192",
+       "messages": [
+                {"role": "system", "content": "You are a helpful business assistant."},
+                {"role": "user", "content": chat_prompt}
+       ],
         "temperature": 0.7
     }
 
