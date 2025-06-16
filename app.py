@@ -85,7 +85,20 @@ IMPORTANT:
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.get_json()
-    user_query = data.get("query", "")
+    query = data.get("query", "")
+
+    system_prompt = "You are an expert KPI advisor chatbot for business users."
+    user_prompt = f"""
+Answer the following user question about business KPIs, tools, or strategies in a professional and easy-to-understand way:
+
+Query: "{query}"
+
+Your response format:
+1. Start with a concise 3–4 line paragraph answering the question clearly.
+2. Then list 3 major points (if relevant) to help the user better understand or apply the concept.
+
+Do NOT include anything else except the paragraph and the bullet points.
+"""
 
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -95,20 +108,19 @@ def chat():
     payload = {
         "model": "llama3-70b-8192",
         "messages": [
-            {"role": "system", "content": "You are a helpful assistant that answers business-related questions about KPIs, business tools, and strategic advice in simple terms."},
-            {"role": "user", "content": user_query}
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ],
         "temperature": 0.7
     }
 
     try:
         response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
-        reply = response.json()["choices"][0]["message"]["content"]
-        return jsonify({"response": reply})
+        content = response.json()["choices"][0]["message"]["content"]
+        return jsonify({"response": content})
     except Exception as e:
-        print(f"Error: {e}")
-        return jsonify({"error": "Failed to generate chat response"}), 500
-
+        print("Chat error:", e)
+        return jsonify({"error": "Unable to generate response"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
