@@ -131,26 +131,18 @@ def generate_business_plan():
     user_idea = data.get("idea", "")
 
     prompt = f"""
-You are an AI Business Strategy Consultant.
+You are an AI Business Advisor.
 
-The user has described a business idea:
-"{user_idea}"
+A user has described their idea: "{user_idea}"
 
-Your task:
-1. Identify the business domain.
-2. Recommend 4 KPIs with 1-line explanation.
-3. Recommend 4 tools with usage guidance.
-4. Provide a 4–6 step launch plan using these tools and KPIs.
+Please identify the domain, list exactly 4 KPIs and 4 tools with short explanations, and 5 steps to launch the business. Return only in this exact JSON format:
 
-Respond ONLY in this JSON format:
 {{
   "domain": "...",
   "kpis": [{{"name": "...", "description": "..." }}, ...],
   "tools": [{{"name": "...", "description": "..." }}, ...],
   "steps": ["Step 1...", "Step 2...", ...]
 }}
-
-Return ONLY valid JSON.
 """
 
     try:
