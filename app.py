@@ -145,7 +145,7 @@ Please identify the domain, list exactly 4 KPIs and 4 tools with short explanati
 """
 
     headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {GROQ_API_KEY}",  # <- Make sure GROQ_API_KEY is defined
         "Content-Type": "application/json"
     }
 
@@ -155,23 +155,26 @@ Please identify the domain, list exactly 4 KPIs and 4 tools with short explanati
             {"role": "system", "content": "You are a helpful business advisor."},
             {"role": "user", "content": prompt}
         ],
-        "temperature": 0.7
+        "temperature": 0.5
     }
 
     try:
         response = requests.post("https://api.groq.com/openai/v1/chat/completions",
                                  headers=headers, json=payload)
-
+        
         result = response.json()
-        raw_text = result["choices"][0]["message"]["content"]
+        ai_content = result["choices"][0]["message"]["content"]
 
-        # Extract valid JSON block
-        match = re.search(r"\{.*\}", raw_text, re.DOTALL)
-        if match:
-            json_text = match.group()
-            return jsonify(json.loads(json_text))
-        else:
-            return jsonify({"error": "AI response did not contain valid JSON"}), 500
+        # Use regex to extract only the JSON block
+        match = re.search(r"\{.*\}", ai_content, re.DOTALL)
+        if not match:
+            return jsonify({"error": "AI response does not contain valid JSON"}), 500
+
+        clean_json = match.group()
+        return jsonify(json.loads(clean_json))
+
+    except json.JSONDecodeError:
+        return jsonify({"error": "Failed to parse AI response as JSON"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
         
