@@ -172,8 +172,8 @@ Please identify the domain, list exactly 4 KPIs and 4 tools with short explanati
             return jsonify(json.loads(json_text))
         else:
             return jsonify({"error": "AI response did not contain valid JSON"}), 500
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
         
 if __name__ == '__main__':
     app.run(debug=True)
