@@ -144,13 +144,13 @@ Please identify the domain, list exactly 4 KPIs and 4 tools with short explanati
   "steps": ["Step 1...", "Step 2...", ...]
 }}
 """
-
     try:
-        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=HEADERS, json={
-            "model": "claude-3-opus-20240229",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.5
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions",headers=HEADERS,json={
+                "model": "llama3-70b-8192",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.5
         })
+        
         result = response.json()
         ai_response = result["choices"][0]["message"]["content"]
         return jsonify(json.loads(ai_response))
