@@ -124,7 +124,6 @@ Now respond to the following user query:
     except Exception as e:
         print("Chat error:", e)
         return jsonify({"error": "Unable to generate response"}), 500
-        
 @app.route("/ai-business-plan", methods=["POST"])
 def generate_business_plan():
     data = request.json
@@ -160,17 +159,22 @@ Please identify the domain, list exactly 4 KPIs and 4 tools with short explanati
     }
 
     try:
-        response = requests.post("https://api.groq.com/openai/v1/chat/completions",headers=HEADERS,json={
-                "model": "llama3-70b-8192",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.5
-        })
-        
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions",
+                                 headers=headers, json=payload)
+
         result = response.json()
-        ai_response = result["choices"][0]["message"]["content"]
-        return jsonify(json.loads(ai_response))
+        raw_text = result["choices"][0]["message"]["content"]
+
+        # Extract valid JSON block
+        match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+        if match:
+            json_text = match.group()
+            return jsonify(json.loads(json_text))
+        else:
+            return jsonify({"error": "AI response did not contain valid JSON"}), 500
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
+        
 if __name__ == '__main__':
     app.run(debug=True)
