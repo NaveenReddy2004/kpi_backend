@@ -7,15 +7,14 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 
-# Restrict CORS to frontend only (add your actual domain)
-CORS(app, origins=["https://kpi-backend-p4q2.onrender.com"])
+CORS(app, origins="*")  # ❗ For production, replace with actual domain
 
 # Load API key securely
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 @app.route('/')
 def home():
-    return "Claude 3 Sonnet Business Chatbot is Live"
+    return "Llama3-70b Business Chatbot is Live"
 
 # /strategy route for quick KPIs, tools, and advice
 @app.route('/strategy', methods=['POST'])
