@@ -124,6 +124,46 @@ Now respond to the following user query:
     except Exception as e:
         print("Chat error:", e)
         return jsonify({"error": "Unable to generate response"}), 500
+        
+@app.route("/ai-business-plan", methods=["POST"])
+def generate_business_plan():
+    data = request.json
+    user_idea = data.get("idea", "")
+
+    prompt = f"""
+You are an AI Business Strategy Consultant.
+
+The user has described a business idea:
+"{user_idea}"
+
+Your task:
+1. Identify the business domain.
+2. Recommend 4 KPIs with 1-line explanation.
+3. Recommend 4 tools with usage guidance.
+4. Provide a 4–6 step launch plan using these tools and KPIs.
+
+Respond ONLY in this JSON format:
+{{
+  "domain": "...",
+  "kpis": [{{"name": "...", "description": "..." }}, ...],
+  "tools": [{{"name": "...", "description": "..." }}, ...],
+  "steps": ["Step 1...", "Step 2...", ...]
+}}
+
+Return ONLY valid JSON.
+"""
+
+    try:
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=HEADERS, json={
+            "model": "claude-3-opus-20240229",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.5
+        })
+        result = response.json()
+        ai_response = result["choices"][0]["message"]["content"]
+        return jsonify(json.loads(ai_response))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
