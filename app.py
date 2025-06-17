@@ -1,26 +1,29 @@
 import os
-import json
 import re
+import json
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
 
+# Restrict CORS to frontend only (add your actual domain)
+CORS(app, origins=["https://kpi-backend-p4q2.onrender.com"])
+
+# Load API key securely
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 @app.route('/')
 def home():
-    return "Claude 3 Sonnet Business Chatbot is Live "
+    return "Claude 3 Sonnet Business Chatbot is Live"
 
+# /strategy route for quick KPIs, tools, and advice
 @app.route('/strategy', methods=['POST'])
 def strategy():
     try:
         data = request.get_json()
         biz = data.get("business_type", "")
 
-        system_prompt = "You are a business strategy advisor."
         user_prompt = f"""
 You are a business strategy advisor. For a business in the {biz} domain:
 
@@ -57,7 +60,7 @@ IMPORTANT:
         payload = {
             "model": "llama3-70b-8192",
             "messages": [
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": "You are a business strategy advisor."},
                 {"role": "user", "content": user_prompt}
             ],
             "temperature": 0.6
@@ -66,28 +69,23 @@ IMPORTANT:
         response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
         raw_reply = response.json()["choices"][0]["message"]["content"]
 
-        # Extract only JSON part from raw output
-        start = raw_reply.find('{')
-        end = raw_reply.rfind('}') + 1
-        json_string = raw_reply[start:end]
-
-        try:
-            parsed_json = json.loads(json_string)
-            return jsonify(parsed_json)
-        except json.JSONDecodeError as e:
-            print("JSON parsing error:", e)
-            print("RAW Groq reply:", raw_reply)
+        match = re.search(r"\{.*\}", raw_reply, re.DOTALL)
+        if not match:
             return jsonify({"error": "Invalid JSON format from Groq"}), 500
 
+        return jsonify(json.loads(match.group()))
+
     except Exception as e:
-        print("Server error:", e)
-        return jsonify({"error": "Server error occurred"}), 500
-        
+        return jsonify({"error": str(e)}), 500
+
+# /chat route for answering user questions about tools, KPIs, etc.
 @app.route('/chat', methods=['POST'])
 def chat():
-    data = request.get_json()
-    user_query = data.get("query", "")
-    chat_prompt = f"""
+    try:
+        data = request.get_json()
+        user_query = data.get("query", "")
+
+        chat_prompt = f"""
 You are an AI assistant helping users understand business tools and KPIs. 
 When the user asks about a KPI, tool, or concept like "{user_query}", respond in a way that is:
 
@@ -104,33 +102,35 @@ Now respond to the following user query:
 {user_query}
 """
 
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
 
-    payload={
-       "model": "llama3-70b-8192",
-       "messages": [
+        payload = {
+            "model": "llama3-70b-8192",
+            "messages": [
                 {"role": "system", "content": "You are a helpful business assistant."},
                 {"role": "user", "content": chat_prompt}
-       ],
-        "temperature": 0.7
-    }
+            ],
+            "temperature": 0.7
+        }
 
-    try:
         response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
         content = response.json()["choices"][0]["message"]["content"]
         return jsonify({"response": content})
+    
     except Exception as e:
-        print("Chat error:", e)
-        return jsonify({"error": "Unable to generate response"}), 500
+        return jsonify({"error": str(e)}), 500
+
+# /ai-business-plan for full JSON business plan generation
 @app.route("/ai-business-plan", methods=["POST"])
 def generate_business_plan():
-    data = request.json
-    user_idea = data.get("idea", "")
+    try:
+        data = request.json
+        user_idea = data.get("idea", "")
 
-    prompt = f"""
+        prompt = f"""
 You are an AI Business Advisor.
 
 A user has described their idea: "{user_idea}"
@@ -145,39 +145,34 @@ Please identify the domain, list exactly 4 KPIs and 4 tools with short explanati
 }}
 """
 
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",  # <- Make sure GROQ_API_KEY is defined
-        "Content-Type": "application/json"
-    }
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
 
-    payload = {
-        "model": "llama3-70b-8192",
-        "messages": [
-            {"role": "system", "content": "You are a helpful business advisor."},
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 0.5
-    }
+        payload = {
+            "model": "llama3-70b-8192",
+            "messages": [
+                {"role": "system", "content": "You are a helpful business advisor."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.5
+        }
 
-    try:
-        response = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                                 headers=headers, json=payload)
-        
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
         result = response.json()
         ai_content = result["choices"][0]["message"]["content"]
 
-        # Use regex to extract only the JSON block
         match = re.search(r"\{.*\}", ai_content, re.DOTALL)
         if not match:
             return jsonify({"error": "AI response does not contain valid JSON"}), 500
 
-        clean_json = match.group()
-        return jsonify(json.loads(clean_json))
+        return jsonify(json.loads(match.group()))
 
     except json.JSONDecodeError:
         return jsonify({"error": "Failed to parse AI response as JSON"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-        
+
 if __name__ == '__main__':
     app.run(debug=True)
