@@ -144,6 +144,21 @@ Please identify the domain, list exactly 4 KPIs and 4 tools with short explanati
   "steps": ["Step 1...", "Step 2...", ...]
 }}
 """
+
+    headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "llama3-70b-8192",
+            "messages": [
+                {"role": "system", "content": "You are a helpful business advisor."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7
+        }
+
     try:
         response = requests.post("https://api.groq.com/openai/v1/chat/completions",headers=HEADERS,json={
                 "model": "llama3-70b-8192",
