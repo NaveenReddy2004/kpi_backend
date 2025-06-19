@@ -172,6 +172,29 @@ Please identify the domain, list exactly 4 KPIs and 4 tools with short explanati
         return jsonify({"error": "Failed to parse AI response as JSON"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+        
+@app.route("/upload", methods=["POST"])
+def upload_file():
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
+
+        file = request.files['file']
+        if file.filename == "":
+            return jsonify({"error": "Empty filename"}), 400
+
+        # Save temporarily and extract text
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            file.save(tmp.name)
+            text = textract.process(tmp.name).decode("utf-8")
+        
+        # Optional: cleanup tmp file
+        os.unlink(tmp.name)
+
+        return jsonify({"text": text[:5000]})  # Optional: limit to 5000 chars
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
