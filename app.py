@@ -1,24 +1,19 @@
 import os
 import re
 import json
-import textract
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+from PyPDF2 import PdfReader
+from docx import Document
 
 app = Flask(__name__)
 
 CORS(app, origins="*")  # ❗ For production, replace with actual domain
 
-UPLOAD_FOLDER = "uploads"
-ALLOWED_EXTENSIONS = {'pdf', 'docx', 'txt'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # Load API key securely
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama3-70b-8192"
 
 @app.route('/')
 def home():
@@ -130,43 +125,51 @@ Now respond to the following user query:
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# Allowed file types for business description upload
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx'}
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/ai-business-plan', methods=['POST'])
+def extract_text_from_file(file):
+    filename = secure_filename(file.filename)
+    extension = filename.rsplit('.', 1)[1].lower()
+
+    if extension == 'txt':
+        return file.read().decode('utf-8', errors='ignore')
+    elif extension == 'pdf':
+        reader = PdfReader(file)
+        return "\n".join([page.extract_text() or "" for page in reader.pages])
+    elif extension == 'docx':
+        doc = Document(file)
+        return "\n".join([para.text for para in doc.paragraphs])
+    else:
+        return ""
+
+
+@app.route("/ai-business-plan", methods=["POST"])
 def generate_business_plan():
     try:
-        user_idea = ""
+        idea = request.form.get("idea", "").strip()
 
-        # Check if it's a JSON request with an 'idea'
-        if request.is_json:
-            data = request.get_json()
-            user_idea = data.get("idea", "").strip()
-
-        # If not JSON, check for a file
-        elif 'file' in request.files:
-            file = request.files['file']
+        file_text = ""
+        if "file" in request.files:
+            file = request.files["file"]
             if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(filepath)
+                file_text = extract_text_from_file(file)
 
-                # Extract text using textract
-                user_idea = textract.process(filepath).decode("utf-8").strip()
-            else:
-                return jsonify({"error": "Unsupported file type"}), 400
+        if not idea and not file_text:
+            return jsonify({"error": "Please provide either a business idea or upload a document."}), 400
 
-        # If neither is valid
-        if not user_idea or len(user_idea) < 10:
-            return jsonify({"error": "Please provide a valid business idea or file"}), 400
+        # Combine idea and file text
+        combined_idea = f"{idea}\n\n{file_text}".strip()
 
-        # Prompt for LLaMA
         prompt = f"""
 You are an AI Business Advisor.
 
-A user has described their idea: "{user_idea}"
+A user has described their idea: "{combined_idea}"
 
-Please identify the domain, list exactly 4 KPIs and 4 tools with short explanations, and 5 steps to launch the business using KPIs and tools used to develop the business. Return only in this exact JSON format:
+Please identify the domain, list exactly 4 KPIs and 4 tools with short explanations, and 5 steps to launch the business using KPIs and tools generated. Return only in this exact JSON format:
 
 {{
   "domain": "...",
@@ -182,15 +185,15 @@ Please identify the domain, list exactly 4 KPIs and 4 tools with short explanati
         }
 
         payload = {
-            "model": GROQ_MODEL,
+            "model": "llama3-70b-8192",
             "messages": [
                 {"role": "system", "content": "You are a helpful business advisor."},
                 {"role": "user", "content": prompt}
             ],
-            "temperature": 0.6
+            "temperature": 0.5
         }
 
-        response = requests.post(GROQ_API_URL, headers=headers, json=payload)
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
         result = response.json()
         ai_content = result["choices"][0]["message"]["content"]
 
@@ -200,8 +203,9 @@ Please identify the domain, list exactly 4 KPIs and 4 tools with short explanati
 
         return jsonify(json.loads(match.group()))
 
+    except json.JSONDecodeError:
+        return jsonify({"error": "Failed to parse AI response as JSON"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 if __name__ == '__main__':
     app.run(debug=True)
