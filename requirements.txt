@@ -1,8 +1,5 @@
-pip<24.1
 Flask
 flask-cors
 requests
-textract==1.6.4
-extract-msg<=0.28.7
 python-docx
 PyPDF2
