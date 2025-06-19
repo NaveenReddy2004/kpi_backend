@@ -134,7 +134,7 @@ You are an AI Business Advisor.
 
 A user has described their idea: "{user_idea}"
 
-Please identify the domain, list exactly 4 KPIs and 4 tools with short explanations, and 5 steps to launch the business. Return only in this exact JSON format:
+Please identify the domain, list exactly 4 KPIs and 4 tools with short explanations, and 5 steps to launch the business using KPIs and tools generated. Return only in this exact JSON format:
 
 {{
   "domain": "...",
