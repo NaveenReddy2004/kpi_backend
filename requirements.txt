@@ -1,6 +1,9 @@
-Flask
-flask-cors
-requests
-python-docx
-PyPDF2
-gunicorn
+pip<24.1
+Flask==3.1.1
+flask-cors==4.0.0
+requests==2.32.4
+python-docx==1.1.0
+PyPDF2==3.0.1
+gunicorn==21.2.0
+supabase==1.2.0
+python-dotenv==1.0.1
