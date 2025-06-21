@@ -111,21 +111,62 @@ You are a business strategy advisor. For a business in the {biz} domain:
 
 Provide exactly 4 KPIs and 4 tools with one-line descriptions, and one piece of strategic advice.
 
-Respond ONLY in valid JSON like:
-{{
-  "kpis": [...],
-  "tools": [...],
-  "advice": "..."
-}}
+Respond ONLY in **valid JSON format** like this:
 
-Only use double quotes. No markdown or explanations.
+{{
+  "kpis": [
+    {{ "name": "KPI1", "description": "..." }},
+    {{ "name": "KPI2", "description": "..." }},
+    {{ "name": "KPI3", "description": "..." }},
+    {{ "name": "KPI4", "description": "..." }}
+  ],
+  "tools": [
+    {{ "name": "Tool1", "description": "..." }},
+    {{ "name": "Tool2", "description": "..." }},
+    {{ "name": "Tool3", "description": "..." }},
+    {{ "name": "Tool4", "description": "..." }}
+  ],
+  "advice": "One-line strategy advice"
+}}
 """
 
-        result = ask_llama(user_prompt, temp=0.6)
-        if not result:
-            return jsonify({"error": "Invalid response format"}), 500
-        return jsonify(result)
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "llama3-70b-8192",
+            "messages": [
+                {"role": "system", "content": "You are a business strategy advisor."},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.6
+        }
+
+        # Make Groq API request
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+        
+        print("Groq API response code:", response.status_code)
+        print("Groq API raw response:", response.text)
+
+        if response.status_code != 200:
+            return jsonify({"error": f"Groq API Error: {response.status_code}", "details": response.text}), 500
+
+        raw_reply = response.json()["choices"][0]["message"]["content"]
+
+        # Extract JSON using regex
+        import re
+        match = re.search(r"\{.*\}", raw_reply, re.DOTALL)
+        if not match:
+            return jsonify({"error": "Invalid JSON format from Groq"}), 500
+
+        return jsonify(json.loads(match.group()))
+
     except Exception as e:
+        import traceback
+        print("Strategy Endpoint Exception:", str(e))
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/chat', methods=['POST'])
