@@ -1,18 +1,18 @@
 import os
 import re
-import traceback
 import json
-import requests
+import traceback
+from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from PyPDF2 import PdfReader
 from docx import Document
 from supabase import create_client, Client
-from datetime import datetime
+import requests
 
 app = Flask(__name__)
-CORS(app, origins="*")  # For development; restrict in production
+CORS(app, origins="*")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -28,7 +28,6 @@ def allowed_file(filename):
 def extract_text_from_file(file):
     filename = secure_filename(file.filename)
     extension = filename.rsplit('.', 1)[1].lower()
-
     if extension == 'txt':
         return file.read().decode('utf-8', errors='ignore')
     elif extension == 'pdf':
@@ -40,142 +39,60 @@ def extract_text_from_file(file):
     else:
         return ""
 
-def ask_llama(prompt, temp=0.5):
+def ask_llama(prompt, email="guest@example.com", idea=""):
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
-
     payload = {
         "model": "llama3-70b-8192",
         "messages": [
             {"role": "system", "content": "You are a helpful business advisor."},
             {"role": "user", "content": prompt}
         ],
-        "temperature": temp
+        "temperature": 0.5
     }
 
-    response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
-    
-    if response.status_code != 200:
-        raise Exception(f"Groq API failed: {response.text}")
-
-    raw = response.json()["choices"][0]["message"]["content"]
+    result = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+    raw = result.json()["choices"][0]["message"]["content"]
 
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     if not match:
-        raise Exception("Invalid JSON returned by Groq")
+        return None
 
-    return json.loads(match.group())
+    parsed = json.loads(match.group())
 
+    # Save to Supabase
+    idea_text = idea[:2000]
+    plan_insert = supabase.table("business_plans").insert({
+        "user_email": email,
+        "idea": idea_text,
+        "domain": parsed.get("domain", "")
+    }).execute()
 
+    plan_id = plan_insert.data[0]["id"]
+
+    for kpi in parsed.get("kpis", []):
+        if isinstance(kpi, dict) and "name" in kpi and "description" in kpi:
+            supabase.table("kpis").insert({
+                "business_plan_id": plan_id,
+                "name": kpi["name"],
+                "description": kpi["description"]
+            }).execute()
+
+    for tool in parsed.get("tools", []):
+        if isinstance(tool, dict) and "name" in tool and "description" in tool:
+            supabase.table("tools").insert({
+                "business_plan_id": plan_id,
+                "name": tool["name"],
+                "description": tool["description"]
+            }).execute()
+
+    return parsed
 
 @app.route('/')
 def home():
-    return "LLaMA3 Business Chatbot API is live."
-
-@app.route('/strategy', methods=['POST'])
-def strategy():
-    try:
-        data = request.get_json()
-        biz = data.get("business_type", "")
-
-        user_prompt = f"""
-You are a business strategy advisor. For a business in the {biz} domain:
-
-Provide exactly 4 KPIs and 4 tools with one-line descriptions, and one piece of strategic advice.
-
-Respond ONLY in **valid JSON format** like this:
-
-{{
-  "kpis": [
-    {{ "name": "KPI1", "description": "..." }},
-    {{ "name": "KPI2", "description": "..." }},
-    {{ "name": "KPI3", "description": "..." }},
-    {{ "name": "KPI4", "description": "..." }}
-  ],
-  "tools": [
-    {{ "name": "Tool1", "description": "..." }},
-    {{ "name": "Tool2", "description": "..." }},
-    {{ "name": "Tool3", "description": "..." }},
-    {{ "name": "Tool4", "description": "..." }}
-  ],
-  "advice": "One-line strategy advice"
-}}
-"""
-
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": "llama3-70b-8192",
-            "messages": [
-                {"role": "system", "content": "You are a business strategy advisor."},
-                {"role": "user", "content": user_prompt}
-            ],
-            "temperature": 0.6
-        }
-
-        # Make Groq API request
-        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
-        
-        print("Groq API response code:", response.status_code)
-        print("Groq API raw response:", response.text)
-
-        if response.status_code != 200:
-            return jsonify({"error": f"Groq API Error: {response.status_code}", "details": response.text}), 500
-
-        raw_reply = response.json()["choices"][0]["message"]["content"]
-
-        # Extract JSON using regex
-        match = re.search(r"\{.*\}", raw_reply, re.DOTALL)
-        if not match:
-            return jsonify({"error": "Invalid JSON format from Groq"}), 500
-
-        return jsonify(json.loads(match.group()))
-
-    except Exception as e:
-        print("Strategy Endpoint Exception:", str(e))
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/chat', methods=['POST'])
-def chat():
-    try:
-        query = request.json.get("query", "")
-
-        prompt = f"""
-You are a friendly AI advisor. When the user asks about KPIs, tools, or concepts like "{query}":
-
-- Avoid jargon
-- Write in 3-4 short paragraphs
-- List 3 key points with bullet points
-- End on a helpful note
-
-Now answer:
-{query}
-"""
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": "llama3-70b-8192",
-            "messages": [
-                {"role": "system", "content": "You are a helpful business assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.7
-        }
-
-        res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
-        response_text = res.json()["choices"][0]["message"]["content"]
-        return jsonify({"response": response_text})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return "Llama3-70b Business Chatbot is Live"
 
 @app.route('/ai-business-plan', methods=['POST'])
 def generate_plan():
@@ -192,19 +109,16 @@ def generate_plan():
         if not idea and not file_text:
             return jsonify({"error": "Provide a business idea or upload a document"}), 400
 
-        combined_idea = f"{idea}\n\n{file_text}".strip()
+        combined_input = f"{idea}\n\n{file_text}".strip()
 
         prompt = f"""
 You are an AI Business Advisor.
-
-User submitted: "{combined_idea}"
-
+User submitted: "{combined_input}"
 Give:
 - Domain
 - 4 KPIs
 - 4 Tools (briefly explained)
 - 5 Launch Steps
-
 Output valid JSON like:
 {{
   "domain": "...",
@@ -214,34 +128,9 @@ Output valid JSON like:
 }}
 """
 
-        ai_output = ask_llama(prompt)
-        
-        # Insert business plan
-        plan_insert = supabase.table("business_plans").insert({
-            "user_email": email,
-            "idea": combined_idea[:2000],
-            "result": json.dumps(ai_output),
-            "domain": ai_output.get("domain", ""),
-            "created_at": datetime.utcnow().isoformat()
-        }).execute()
-
-        plan_id = plan_insert.data[0]["id"]
-
-        # Insert KPIs
-        for kpi in ai_output.get("kpis", []):
-            supabase.table("kpis").insert({
-                "business_plan_id": plan_id,
-                "name": kpi["name"],
-                "description": kpi["description"]
-            }).execute()
-
-        # Insert Tools
-        for tool in ai_output.get("tools", []):
-            supabase.table("tools").insert({
-                "business_plan_id": plan_id,
-                "name": tool["name"],
-                "description": tool["description"]
-            }).execute()
+        ai_output = ask_llama(prompt, email, combined_input)
+        if not ai_output:
+            return jsonify({"error": "Invalid JSON format from AI"}), 500
 
         return jsonify(ai_output)
 
@@ -249,24 +138,79 @@ Output valid JSON like:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-
-@app.route("/history", methods=["POST"])
-def history():
+@app.route('/strategy', methods=['POST'])
+def strategy():
     try:
-        email = request.json.get("email")
-        if not email:
-            return jsonify({"error": "Email is required"}), 400
+        data = request.get_json()
+        biz = data.get("business_type", "")
 
-        response = supabase.table("business_plans") \
-            .select("*") \
-            .eq("user_email", email) \
-            .order("created_at", desc=True) \
-            .limit(10) \
-            .execute()
+        user_prompt = f"""
+You are a business strategy advisor. For a business in the {biz} domain:
+Provide exactly 4 KPIs and 4 tools with one-line descriptions, and one piece of strategic advice.
+Respond ONLY in **valid JSON format** like this:
+{{
+  "kpis": [{{"name": "...", "description": "..."}}, ...],
+  "tools": [{{"name": "...", "description": "..."}}, ...],
+  "advice": "..."
+}}
+"""
 
-        return jsonify(response.data)
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "llama3-70b-8192",
+            "messages": [
+                {"role": "system", "content": "You are a business strategy advisor."},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.6
+        }
+
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+        raw_reply = response.json()["choices"][0]["message"]["content"]
+
+        match = re.search(r"\{.*\}", raw_reply, re.DOTALL)
+        if not match:
+            return jsonify({"error": "Invalid JSON format from Groq"}), 500
+
+        return jsonify(json.loads(match.group()))
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-if __name__ == "__main__":
+@app.route('/chat', methods=['POST'])
+def chat():
+    try:
+        data = request.get_json()
+        user_query = data.get("query", "")
+
+        chat_prompt = f"""
+You are an AI assistant helping users understand business tools and KPIs.
+User asked: {user_query}
+Reply in 3-4 short paragraphs and 3 bullet points. Friendly, clear, and helpful.
+"""
+
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "llama3-70b-8192",
+            "messages": [
+                {"role": "system", "content": "You are a helpful business assistant."},
+                {"role": "user", "content": chat_prompt}
+            ],
+            "temperature": 0.7
+        }
+
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+        content = response.json()["choices"][0]["message"]["content"]
+        return jsonify({"response": content})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
     app.run(debug=True)
