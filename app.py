@@ -1,5 +1,6 @@
 import os
 import re
+import traceback
 import json
 import requests
 from flask import Flask, request, jsonify
@@ -44,6 +45,7 @@ def ask_llama(prompt, temp=0.5):
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
+
     payload = {
         "model": "llama3-70b-8192",
         "messages": [
@@ -53,47 +55,19 @@ def ask_llama(prompt, temp=0.5):
         "temperature": temp
     }
 
-    result = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
-    raw = result.json()["choices"][0]["message"]["content"]
+    response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+    
+    if response.status_code != 200:
+        raise Exception(f"Groq API failed: {response.text}")
+
+    raw = response.json()["choices"][0]["message"]["content"]
 
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     if not match:
-        return jsonify({"error": "AI response does not contain valid JSON"}), 500
+        raise Exception("Invalid JSON returned by Groq")
 
-    parsed = json.loads(match.group())
+    return json.loads(match.group())
 
-    # Optional: Get user email (if you're sending it from frontend)
-    user_email = request.form.get("user_email", "guest@example.com")
-
-    # Truncate long ideas if needed
-    idea_text = combined_idea[:2000]
-
-    # Insert into Supabase
-    plan_insert = supabase.table("business_plans").insert({
-        "user_email": user_email,
-        "idea": idea_text,
-        "domain": parsed["domain"]
-    }).execute()
-
-    plan_id = plan_insert.data[0]["id"]
-
-    # Store KPIs
-    for kpi in parsed.get("kpis", []):
-        supabase.table("kpis").insert({
-            "business_plan_id": plan_id,
-            "name": kpi["name"],
-            "description": kpi["description"]
-        }).execute()
-
-    # Store Tools
-    for tool in parsed.get("tools", []):
-        supabase.table("tools").insert({
-            "business_plan_id": plan_id,
-            "name": tool["name"],
-            "description": tool["description"]
-        }).execute()
-
-    return jsonify(parsed)
 
 
 @app.route('/')
@@ -163,7 +137,6 @@ Respond ONLY in **valid JSON format** like this:
         return jsonify(json.loads(match.group()))
 
     except Exception as e:
-        import traceback
         print("Strategy Endpoint Exception:", str(e))
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
@@ -207,7 +180,7 @@ Now answer:
 @app.route('/ai-business-plan', methods=['POST'])
 def generate_plan():
     try:
-        email = request.form.get("email", "").strip()
+        email = request.form.get("email", "guest@example.com").strip()
         idea = request.form.get("idea", "").strip()
         file_text = ""
 
@@ -219,15 +192,12 @@ def generate_plan():
         if not idea and not file_text:
             return jsonify({"error": "Provide a business idea or upload a document"}), 400
 
-        combined_input = f"{idea}\n\n{file_text}".strip()
-
-        if len(combined_input) < 10:
-            return jsonify({"error": "Please provide a more detailed business idea or file content."}), 400
+        combined_idea = f"{idea}\n\n{file_text}".strip()
 
         prompt = f"""
 You are an AI Business Advisor.
 
-User submitted: "{combined_input}"
+User submitted: "{combined_idea}"
 
 Give:
 - Domain
@@ -245,37 +215,40 @@ Output valid JSON like:
 """
 
         ai_output = ask_llama(prompt)
-        if not ai_output:
-            return jsonify({"error": "No response from AI"}), 500
+        
+        # Insert business plan
+        plan_insert = supabase.table("business_plans").insert({
+            "user_email": email,
+            "idea": combined_idea[:2000],
+            "result": json.dumps(ai_output),
+            "domain": ai_output.get("domain", ""),
+            "created_at": datetime.utcnow().isoformat()
+        }).execute()
 
-        if isinstance(ai_output, str):
-            match = re.search(r"\{.*\}", ai_output, re.DOTALL)
-            if not match:
-                print("❌ Invalid JSON returned by AI:", ai_output)
-                return jsonify({"error": "AI returned invalid format."}), 500
-            try:
-                ai_output = json.loads(match.group())
-            except json.JSONDecodeError:
-                print("❌ JSON decode error")
-                return jsonify({"error": "Could not parse AI response"}), 500
+        plan_id = plan_insert.data[0]["id"]
 
-        # Save to Supabase
-        try:
-            supabase.table("business_plans").insert({
-                "user_email": email or "anonymous",
-                "idea": combined_input[:5000],
-                "result": json.dumps(ai_output),
-                "created_at": datetime.utcnow().isoformat()
+        # Insert KPIs
+        for kpi in ai_output.get("kpis", []):
+            supabase.table("kpis").insert({
+                "business_plan_id": plan_id,
+                "name": kpi["name"],
+                "description": kpi["description"]
             }).execute()
-        except Exception as db_error:
-            print("❌ Supabase insert failed:", str(db_error))
+
+        # Insert Tools
+        for tool in ai_output.get("tools", []):
+            supabase.table("tools").insert({
+                "business_plan_id": plan_id,
+                "name": tool["name"],
+                "description": tool["description"]
+            }).execute()
 
         return jsonify(ai_output)
 
     except Exception as e:
-        print("❌ Exception occurred in /ai-business-plan route:")
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/history", methods=["POST"])
 def history():
