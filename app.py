@@ -53,10 +53,48 @@ def ask_llama(prompt, temp=0.5):
         "temperature": temp
     }
 
-    res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
-    raw = res.json()["choices"][0]["message"]["content"]
+    result = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+    raw = result.json()["choices"][0]["message"]["content"]
+
     match = re.search(r"\{.*\}", raw, re.DOTALL)
-    return json.loads(match.group()) if match else None
+    if not match:
+        return jsonify({"error": "AI response does not contain valid JSON"}), 500
+
+    parsed = json.loads(match.group())
+
+    # Optional: Get user email (if you're sending it from frontend)
+    user_email = request.form.get("user_email", "guest@example.com")
+
+    # Truncate long ideas if needed
+    idea_text = combined_idea[:2000]
+
+    # Insert into Supabase
+    plan_insert = supabase.table("business_plans").insert({
+        "user_email": user_email,
+        "idea": idea_text,
+        "domain": parsed["domain"]
+    }).execute()
+
+    plan_id = plan_insert.data[0]["id"]
+
+    # Store KPIs
+    for kpi in parsed.get("kpis", []):
+        supabase.table("kpis").insert({
+            "business_plan_id": plan_id,
+            "name": kpi["name"],
+            "description": kpi["description"]
+        }).execute()
+
+    # Store Tools
+    for tool in parsed.get("tools", []):
+        supabase.table("tools").insert({
+            "business_plan_id": plan_id,
+            "name": tool["name"],
+            "description": tool["description"]
+        }).execute()
+
+    return jsonify(parsed)
+
 
 @app.route('/')
 def home():
