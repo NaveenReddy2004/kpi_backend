@@ -255,8 +255,17 @@ Output valid JSON like:
 
         return jsonify(ai_output)
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    # After receiving ai_output from ask_llama(prompt)
+    if isinstance(ai_output, str):
+        match = re.search(r"\{.*\}", ai_output, re.DOTALL)
+    if not match:
+        print("❌ Invalid JSON returned by Groq:", ai_output)
+        return jsonify({"error": "AI returned invalid format."}), 500
+    try:
+        ai_output = json.loads(match.group())
+    except json.JSONDecodeError:
+        print("❌ JSON decode error")
+        return jsonify({"error": "Could not parse AI response"}), 500
 
 @app.route("/history", methods=["POST"])
 def history():
