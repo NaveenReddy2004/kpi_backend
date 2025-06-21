@@ -221,6 +221,9 @@ def generate_plan():
 
         combined_input = f"{idea}\n\n{file_text}".strip()
 
+        if len(combined_input) < 10:
+            return jsonify({"error": "Please provide a more detailed business idea or file content."}), 400
+
         prompt = f"""
 You are an AI Business Advisor.
 
@@ -240,31 +243,39 @@ Output valid JSON like:
   "steps": [...]
 }}
 """
+
         ai_output = ask_llama(prompt)
         if not ai_output:
-            return jsonify({"error": "Invalid JSON format from AI"}), 500
+            return jsonify({"error": "No response from AI"}), 500
 
-        # Save to Supabase
-        supabase.table("business_plans").insert({
-            "user_email": email or "anonymous",
-            "idea": combined_input[:5000],
-            "result": json.dumps(ai_output),
-            "created_at": datetime.utcnow().isoformat()
-        }).execute()
-
-        return jsonify(ai_output)
-
-        # After receiving ai_output from ask_llama(prompt)
         if isinstance(ai_output, str):
             match = re.search(r"\{.*\}", ai_output, re.DOTALL)
             if not match:
-                print("❌ Invalid JSON returned by Groq:", ai_output)
+                print("❌ Invalid JSON returned by AI:", ai_output)
                 return jsonify({"error": "AI returned invalid format."}), 500
             try:
                 ai_output = json.loads(match.group())
             except json.JSONDecodeError:
                 print("❌ JSON decode error")
                 return jsonify({"error": "Could not parse AI response"}), 500
+
+        # Save to Supabase
+        try:
+            supabase.table("business_plans").insert({
+                "user_email": email or "anonymous",
+                "idea": combined_input[:5000],
+                "result": json.dumps(ai_output),
+                "created_at": datetime.utcnow().isoformat()
+            }).execute()
+        except Exception as db_error:
+            print("❌ Supabase insert failed:", str(db_error))
+
+        return jsonify(ai_output)
+
+    except Exception as e:
+        print("❌ Exception occurred in /ai-business-plan route:")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/history", methods=["POST"])
 def history():
