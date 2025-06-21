@@ -39,7 +39,7 @@ def extract_text_from_file(file):
     else:
         return ""
 
-def ask_llama(prompt, temp=0.5,text=""):
+def ask_llama(prompt, email, combined_idea, temp=0.5):
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
@@ -53,70 +53,51 @@ def ask_llama(prompt, temp=0.5,text=""):
         "temperature": temp
     }
 
-    result = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
-    raw = result.json()["choices"][0]["message"]["content"]
+    try:
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+        response.raise_for_status()
+        result = response.json()
 
-    match = re.search(r"\{.*\}", raw, re.DOTALL)
-    if not match:
-        return None  # Invalid JSON format
+        if "choices" not in result or not result["choices"]:
+            print("❌ Groq API Error Response:", result)
+            return None
 
-    parsed = json.loads(match.group())
+        raw = result["choices"][0]["message"]["content"]
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not match:
+            return None
 
-    # Debug print
-    print("AI Output:", json.dumps(parsed, indent=2))
+        parsed = json.loads(match.group())
 
-    # Get user email from form
-    user_email = request.form.get("email", "guest@example.com")
-    combined_idea = request.form.get("idea", "").strip()
-    file_text = ""
-    if "file" in request.files:
-        file = request.files["file"]
-        if file and allowed_file(file.filename):
-            file_text = extract_text_from_file(file)
+        # Supabase insertions (optional, if you’re calling from generate_plan)
+        plan_insert = supabase.table("business_plans").insert({
+            "user_email": email or "guest@example.com",
+            "idea": combined_idea[:5000],
+            "domain": parsed.get("domain", "Unknown"),
+            "created_at": datetime.utcnow().isoformat()
+        }).execute()
 
-    combined_input = f"{combined_idea}\n\n{file_text}".strip()
+        plan_id = plan_insert.data[0]["id"]
 
-    # Save business plan
-    plan_insert = supabase.table("business_plans").insert({
-        "user_email": user_email,
-        "idea": combined_input[:5000],
-        "domain": parsed.get("domain", "Unknown"),
-        "created_at": datetime.utcnow().isoformat()
-    }).execute()
-
-    plan_id = plan_insert.data[0]["id"]
-
-    # Store KPIs
-    for kpi in parsed.get("kpis", []):
-        if isinstance(kpi, dict):
+        for kpi in parsed.get("kpis", []):
             supabase.table("kpis").insert({
                 "business_plan_id": plan_id,
-                "name": kpi.get("name", "Unnamed KPI"),
+                "name": kpi.get("name", str(kpi)),
                 "description": kpi.get("description", "No description available")
             }).execute()
-        else:
-            supabase.table("kpis").insert({
-                "business_plan_id": plan_id,
-                "name": str(kpi),
-                "description": "No description available"
-            }).execute()
 
-    # Store Tools
-    for tool in parsed.get("tools", []):
-        if isinstance(tool, dict):
+        for tool in parsed.get("tools", []):
             supabase.table("tools").insert({
                 "business_plan_id": plan_id,
-                "name": tool.get("name", "Unnamed Tool"),
+                "name": tool.get("name", str(tool)),
                 "description": tool.get("description", "No description available")
             }).execute()
-        else:
-            supabase.table("tools").insert({
-                "business_plan_id": plan_id,
-                "name": str(tool),
-                "description": "No description available"
-            }).execute()
 
-    return parsed
+        return parsed
+
+    except Exception as e:
+        print("❌ Groq API Error:", str(e))
+        return None
 
 @app.route('/')
 def home():
@@ -158,7 +139,7 @@ Output valid JSON like:
 
         ai_output = ask_llama(prompt, email, combined_input)
         if not ai_output:
-            return jsonify({"error": "Invalid JSON format from AI"}), 500
+            return jsonify({"error": "Failed to get valid response from AI"}), 500
 
         return jsonify(ai_output)
 
