@@ -39,7 +39,7 @@ def extract_text_from_file(file):
     else:
         return ""
 
-def ask_llama(prompt, temp=0.5):
+def ask_llama(prompt, temp=0.5,text=""):
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
