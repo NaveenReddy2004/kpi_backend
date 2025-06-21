@@ -39,7 +39,7 @@ def extract_text_from_file(file):
     else:
         return ""
 
-def ask_llama(prompt, email="guest@example.com", idea=""):
+def ask_llama(prompt, temp=0.5):
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
@@ -50,7 +50,7 @@ def ask_llama(prompt, email="guest@example.com", idea=""):
             {"role": "system", "content": "You are a helpful business advisor."},
             {"role": "user", "content": prompt}
         ],
-        "temperature": 0.5
+        "temperature": temp
     }
 
     result = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
@@ -58,34 +58,62 @@ def ask_llama(prompt, email="guest@example.com", idea=""):
 
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     if not match:
-        return None
+        return None  # Invalid JSON format
 
     parsed = json.loads(match.group())
 
-    # Save to Supabase
-    idea_text = idea[:2000]
+    # Debug print
+    print("AI Output:", json.dumps(parsed, indent=2))
+
+    # Get user email from form
+    user_email = request.form.get("email", "guest@example.com")
+    combined_idea = request.form.get("idea", "").strip()
+    file_text = ""
+    if "file" in request.files:
+        file = request.files["file"]
+        if file and allowed_file(file.filename):
+            file_text = extract_text_from_file(file)
+
+    combined_input = f"{combined_idea}\n\n{file_text}".strip()
+
+    # Save business plan
     plan_insert = supabase.table("business_plans").insert({
-        "user_email": email,
-        "idea": idea_text,
-        "domain": parsed.get("domain", "")
+        "user_email": user_email,
+        "idea": combined_input[:5000],
+        "domain": parsed.get("domain", "Unknown"),
+        "created_at": datetime.utcnow().isoformat()
     }).execute()
 
     plan_id = plan_insert.data[0]["id"]
 
+    # Store KPIs
     for kpi in parsed.get("kpis", []):
-        if isinstance(kpi, dict) and "name" in kpi and "description" in kpi:
+        if isinstance(kpi, dict):
             supabase.table("kpis").insert({
                 "business_plan_id": plan_id,
-                "name": kpi["name"],
-                "description": kpi["description"]
+                "name": kpi.get("name", "Unnamed KPI"),
+                "description": kpi.get("description", "No description available")
+            }).execute()
+        else:
+            supabase.table("kpis").insert({
+                "business_plan_id": plan_id,
+                "name": str(kpi),
+                "description": "No description available"
             }).execute()
 
+    # Store Tools
     for tool in parsed.get("tools", []):
-        if isinstance(tool, dict) and "name" in tool and "description" in tool:
+        if isinstance(tool, dict):
             supabase.table("tools").insert({
                 "business_plan_id": plan_id,
-                "name": tool["name"],
-                "description": tool["description"]
+                "name": tool.get("name", "Unnamed Tool"),
+                "description": tool.get("description", "No description available")
+            }).execute()
+        else:
+            supabase.table("tools").insert({
+                "business_plan_id": plan_id,
+                "name": str(tool),
+                "description": "No description available"
             }).execute()
 
     return parsed
