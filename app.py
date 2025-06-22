@@ -12,6 +12,9 @@ from supabase import create_client, Client
 import requests
 from auth_utils import get_user_from_request
 
+app = Flask(__name__)
+CORS(app, origins="*")
+
 @app.route("/secure-data", methods=["GET"])
 def secure_data():
     user = get_user_from_request(request)
@@ -20,8 +23,6 @@ def secure_data():
 
     return jsonify({"message": f"Hello, {user['email']}!"})
 
-app = Flask(__name__)
-CORS(app, origins="*")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
