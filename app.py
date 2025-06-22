@@ -10,6 +10,15 @@ from PyPDF2 import PdfReader
 from docx import Document
 from supabase import create_client, Client
 import requests
+from auth_utils import get_user_from_request
+
+@app.route("/secure-data", methods=["GET"])
+def secure_data():
+    user = get_user_from_request(request)
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    return jsonify({"message": f"Hello, {user['email']}!"})
 
 app = Flask(__name__)
 CORS(app, origins="*")
