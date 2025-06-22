@@ -128,12 +128,6 @@ def ask_llama(prompt, email, combined_idea, temp=0.5):
 def home():
     return "Llama3-70b Business Chatbot is Live"
     
-@app.route("/secure-data", methods=["GET"])
-def secure_data():
-    user = get_user_from_request(request)
-    if not user:
-        return jsonify({"error": "Unauthorized"}), 401
-    return jsonify({"message": f"Hello, {user['email']}!"})
 
 @app.route('/ai-business-plan', methods=['POST'])
 def generate_plan():
