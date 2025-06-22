@@ -51,8 +51,9 @@ def validate_jwt_token(token):
 
 def get_user_from_request(req):
     auth_header = req.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return None
+    if not auth_header.startswith("Bearer "): return None
+    token = auth_header.split(" ")[1]
+    return validate_jwt_token(token)  
 
     token = auth_header.split(" ")[1]
     user = validate_jwt_token(token)
