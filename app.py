@@ -80,17 +80,32 @@ def ask_llama(prompt, email, combined_idea, temp=0.5):
         plan_id = plan_insert.data[0]["id"]
 
         for kpi in parsed.get("kpis", []):
+            if isinstance(kpi, dict):
+                name = kpi.get("name", "Unnamed KPI")
+                desc = kpi.get("description", "No description available")
+            else:  # if it's just a string
+                name = kpi
+                desc = "No description available"
+
             supabase.table("kpis").insert({
-                "business_plan_id": plan_id,
-                "name": kpi.get("name", str(kpi)),
-                "description": kpi.get("description", "No description available")
-            }).execute()
+                    "business_plan_id": plan_id,
+                    "name": name,
+                    "description": desc
+                }).execute()
+
 
         for tool in parsed.get("tools", []):
+            if isinstance(tool, dict):
+                name = tool.get("name", "Unnamed Tool")
+                desc = tool.get("description", "No description available")
+            else:
+                name = tool
+                desc = "No description available"
+
             supabase.table("tools").insert({
                 "business_plan_id": plan_id,
-                "name": tool.get("name", str(tool)),
-                "description": tool.get("description", "No description available")
+                "name": name,
+                "description": desc
             }).execute()
 
         return parsed
@@ -121,20 +136,42 @@ def generate_plan():
         combined_input = f"{idea}\n\n{file_text}".strip()
 
         prompt = f"""
-You are an AI Business Advisor.
-User submitted: "{combined_input}"
-Give:
-- Domain
-- 4 KPIs
-- 4 Tools (briefly explained)
-- 5 Launch Steps
-Output valid JSON like:
+You are an expert AI Business Advisor.
+
+The user provided this idea or description of a business:
+\"\"\"{combined_input}\"\"\"
+
+Based on this, analyze the business and return a detailed response in the following **strict JSON format**:
+
 {{
-  "domain": "...",
-  "kpis": [...],
-  "tools": [...],
-  "steps": [...]
+  "domain": "A one-word or short phrase categorizing the business domain (e.g., FinTech, EdTech, E-commerce, etc.)",
+  "kpis": [
+    {{ "name": "KPI Name", "description": "What it measures and why it's important" }},
+    {{ "name": "KPI Name", "description": "..." }},
+    {{ "name": "KPI Name", "description": "..." }},
+    {{ "name": "KPI Name", "description": "..." }}
+  ],
+  "tools": [
+    {{ "name": "Tool Name", "description": "How the tool supports the business" }},
+    {{ "name": "Tool Name", "description": "..." }},
+    {{ "name": "Tool Name", "description": "..." }},
+    {{ "name": "Tool Name", "description": "..." }}
+  ],
+  "steps": [
+    "Step 1: ...",
+    "Step 2: ...",
+    "Step 3: ...",
+    "Step 4: ...",
+    "Step 5: ..."
+  ]
 }}
+
+Rules:
+- Use only double quotes (") for JSON.
+- Each KPI and Tool must include a `name` and a short `description`.
+- Do NOT include explanations outside the JSON.
+- Avoid markdown or extra commentary.
+- Keep the response compact but informative.
 """
 
         ai_output = ask_llama(prompt, email, combined_input)
