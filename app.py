@@ -13,7 +13,7 @@ import requests
 from auth_utils import get_user_from_request
 
 app = Flask(__name__)
-CORS(app, origins="*")
+CORS(app, origins=["https://shiny-paletas-e1e797.netlify.app"])
 
 @app.route("/secure-data", methods=["GET"])
 def secure_data():
